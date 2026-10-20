@@ -37,6 +37,7 @@ A successful response contains:
 - `depends_on` — fiat-token dependencies for a derivative corridor.
 - `reference_mid`, `reference_source`, `reference_pair` — the benchmark used for scoring.
 - `reference_agreement`, optional secondary mid/source/divergence/note, and `scored` — the two-provider benchmark cross-check.
+- `reference_diagnostic` — optional third-provider attribution of a `DISAGREE`: `source`, `mid`, optional `as_of`, `outlier`, the two relative distances, and optional `reason`. It is evidence only; `reference_mid`, `reference_source` and `scored` are chosen exactly as they would be without it. See [reference providers](reference-providers.md).
 - `reference_fetched_at` — when the benchmark was obtained, when available.
 - `floor_loss_pct`, `floor_size`, `worst_loss_pct`, `worst_size` — ladder summary values.
 - `recommended` — the best acceptable quote, or JSON `null` when no size is recommendable.
@@ -164,6 +165,11 @@ curl -s "https://wayfare-cdb9.onrender.com/api/corridor?from=USDC&to=NGNC&sizes=
       "integrity": "DIRECT",
       "quote": {
         "description": "USDC -> XLM -> NGNC",
+        "hops": [
+          {"code": "USDC", "issuer": "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN", "asset": "stellar:USDC:GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN"},
+          {"code": "XLM", "asset": "stellar:native"},
+          {"code": "NGNC", "issuer": "GASBV6W7GGED66MXEVC7YZHTWWYMSVYEY35USF2HJZBLABLYIFQGXZY6", "peg": "NGN", "asset": "stellar:NGNC:GASBV6W7GGED66MXEVC7YZHTWWYMSVYEY35USF2HJZBLABLYIFQGXZY6"}
+        ],
         "source": "stellar-dex",
         "receive_amount": "186947.8515264",
         "effective_rate": "37.38957030528",
@@ -193,6 +199,8 @@ curl -s "https://wayfare-cdb9.onrender.com/api/corridor?from=USDC&to=NGNC&sizes=
   ]
 }
 ```
+
+Every quote — `recommended` and each rung's `quote` — carries `hops`: the path as structured data, in execution order with both endpoints, each entry an asset with its `issuer` where one was established and its `peg` where known. `description` stays exactly as it was, for display and compatibility; `hops` is the field to consume, because an asset code identifies nothing without its issuer and a client must not parse prose or guess an issuer from a code. A hop whose issuing account could not be established says so with `issuer_unknown: true` instead of omitting the field silently; native and fiat assets have no issuer by nature and are identified in full by `asset`. A stored (stale) reading serves `hops: null` — the run store records the description string only, and “not recorded” is not the same claim as “no intermediate assets”.
 
 ## `GET /api/corridor/trend`
 
@@ -479,7 +487,7 @@ authenticate anyone.
 
 `live` is not a verdict. It describes where the response came from. A response with `live: false` is historical, and its `stale` envelope is authoritative for age. Consumers must not infer freshness from deployment time, request time, or the absence of an error.
 
-Reference rates are never averaged. The response identifies the provider and, when available, the second provider and divergence. `NO-MARKET` means no path was returned; it is not the same claim as a priced route with an `UNUSABLE` verdict.
+Reference rates are never averaged. The response identifies the provider and, when available, the second provider and divergence. On a `DISAGREE` it may also carry `reference_diagnostic`, which names an independent third provider and which of the two primaries is farther from it; that attribution never changes the scored mid. `NO-MARKET` means no path was returned; it is not the same claim as a priced route with an `UNUSABLE` verdict.
 
 ## API deprecation policy
 
